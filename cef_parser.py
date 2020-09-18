@@ -1,4 +1,6 @@
 #!/usr/bin/python
+# Based on https://github.com/sooshie/cef_parser (MIT License)
+# Upgraded to flatten CEF custom number/string keyspace.
 
 import re
 import sys
@@ -6,8 +8,8 @@ import json
 import argparse
 
 # Example:
-# bash-3.2$ echo "Sep 19 08:26:10 host CEF:0|security|threatmanager|1.0|100|worm successfully stopped|10|src=10.0.0.1 dst=2.1.2.2 spt=1232" | ./cef_parser.py 
-#{"src": "10.0.0.1", "Name": "worm successfully stopped", "spt": "1232", "dst": "2.1.2.2", "DeviceVendor": "security", "CEFVersion": "0", "SignatureID": "100", "Severity": "10", "DeviceProduct": "threatmanager", "DeviceVersion": "1.0"}#
+# bash-3.2$ echo "Sep 19 08:26:10 host CEF:0|security|threatmanager|1.0|100|worm successfully stopped|10|src=10.0.0.1 dst=2.1.2.2 spt=1232 cs1Label=Policy cs1=DropAll" | ./cef_parser.py
+#{"src": "10.0.0.1", "Name": "worm successfully stopped", "spt": "1232", "dst": "2.1.2.2", "DeviceVendor": "security", "CEFVersion": "0", "SignatureID": "100", "Severity": "10", "DeviceProduct": "threatmanager", "DeviceVersion": "1.0", "Policy": "DropAll"}#
 #
 # bash-3.2$ echo "Sep 19 08:26:10 host CEF:0|security|threatmanager|1.0|100|worm successfully stopped|10|src=10.0.0.1 dst=2.1.2.2 spt=1232" | ./cef_parser.py -p "Severity, DeviceProduct, dst, src"
 #{"src": "10.0.0.1", "dst": "2.1.2.2", "Severity": "10", "DeviceProduct": "threatmanager"}
@@ -142,6 +144,7 @@ def main():
 
     for line in infile:
         parsed = {}
+        final_parsed = {}
         tokens = re.split(r'(?<!\\)\|', line)
         Extension = ''
         if len(tokens) == 8:
@@ -170,11 +173,17 @@ def main():
                 continue_parsing = False
 
         o = {}
+        for k in parsed:
+            if "Label" in k and len(k) == len("csXLabel"):
+                value_key = k[:3]
+                final_parsed[parsed[k]] = parsed[value_key]
+            if "cs" not in k[:2] and "cn" not in k[:2]:
+                final_parsed[k] = parsed[k]
         if len(print_keys) > 0:
             for p in print_keys:
-               o[p] = parsed[p]
+               o[p] = final_parsed[p]
         else:
-            o = parsed
+            o = final_parsed
         print json.dumps(o)
 
     #close input file if one was opened
